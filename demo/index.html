@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>דמו אינטראקטיבי - כלי להגדרת יעדים קהילתיים (4 שלבים)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0">
+  <div id="app" class="py-2 space-y-2.5 text-sm"></div>
+
+  <script>
+    // ==========================================
+    // STATE INITIALIZATION (V4 - CLEAN 4-STAGE PROCESS)
+    // 1. כתיבת יעדים אישיים
+    // 2. איחוד בקבוצה (צמצום המספר ללא ויתור על יעדים)
+    // 3. הצבעה בקבוצה (צמצום בחירת היעדים וויתור על חלקם - 10 עולים)
+    // 4. איחוד יעדים בין הקבוצות (התוצר הסופי לשלב זה)
+    // ==========================================
+    function createInitialState() {
+      return {
+        currentView: 'facilitator', // 'mobile' | 'facilitator' | 'intergroup'
+        facilitatorStage: 2, // 2 (איחוד בקבוצה) | 3 (תוצאות ההצבעה בקבוצה)
+        activeMobileUserId: 'u1',
+        mobileStage: 2, // 1 (כתיבת יעדים אישיים) | 2 (סבב איחוד בקבוצה) | 3 (הצבעה בקבוצה 1-7)
+        mobileVoteSubStep: 'select', // 'select' | 'reorder'
+        expandedId: 'merged_gg1',
+        editingRawGoalId: null,
+        editingRawGoalText: '',
+        mergeTitleInput: 'הפעלת עגלת קפה קהילתית בימי שישי במדשאה המרכזית כמקום מפגש בין-דורי',
+        mobileNewGoalText: '',
+        draggedRankIndex: null,
+        toastMessage: null,
+
+        // Stage 2: Round-Robin Turn Logic
+        roundNumber: 1,
+        activeTurnUserId: 'u1', // דני כהן
+        presentedInCurrentRound: [],
+        hasPresentedInActiveTurn: true,
+        openRoundMode: false,
+
+        // Stage 4: Inter-group merging state
+        interGroupTitleInput: 'שיפוץ מועדון הנוער והפעלתו 4 ערבים בשבוע עם מדריך נוער בשכר ותקציב קבוע',
+
+        participants: [
+          { id: 'u1', name: 'דני כהן', groupId: 1 },
+          { id: 'u2', name: 'רותי לוי', groupId: 1 },
+          { id: 'u3', name: 'מיכל אברהם', groupId: 1 },
+          { id: 'u4', name: 'יוסי מזרחי', groupId: 1 },
+          { id: 'u5', name: 'ענת גולן', groupId: 1 },
+          { id: 'u6', name: 'רון שגב', groupId: 1 },
+          { id: 'u7', name: 'תמר פרץ', groupId: 1 }
+        ],
+
+        // Stage 1 & 2 Personal Goals (Strictly private unless in 'proposal' or 'unified' box)
+        rawGoals: [
+          // Active "הצעה לאיחוד יעדים" box in Group 1
+          { id: 'rg1', authorId: 'u1', authorName: 'דני כהן', text: 'אני מודה על כך שהקמנו עגלת קפה קהילתית שפועלת בימי שישי במדשאה המרכזית', boxState: 'proposal', isProposalStarter: true, mergedIntoId: null },
+          { id: 'rg2', authorId: 'u2', authorName: 'רותי לוי', text: 'אני מודה על פתיחת בית קפה קהילתי שבועי בימי שישי בבוקר למפגש בין ותיקים לצעירים', boxState: 'proposal', isProposalStarter: false, mergedIntoId: null },
+
+          // Strictly PRIVATE personal goals (visible ONLY on author's phone)
+          { id: 'rg3', authorId: 'u1', authorName: 'דני כהן', text: 'אני מודה על הקמת מסלול אופניים בטוח ומואר סביב היישוב', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg4', authorId: 'u2', authorName: 'רותי לוי', text: 'אני מודה על הקמת מועדון קריאה והרצאות חודשי לוותיקי הקהילה', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg5', authorId: 'u3', authorName: 'מיכל אברהם', text: 'אני מודה על פתיחת צהרון קהילתי מסובסד לילדי כיתות א-ג', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg6', authorId: 'u4', authorName: 'יוסי מזרחי', text: 'אני מודה על הקמת מגרש כדורסל משולב ומקורה לנוער ולמבוגרים', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg7', authorId: 'u5', authorName: 'ענת גולן', text: 'אני מודה על פרלמנט שישי קבוע עם קפה ומאפה על הדשא המרכזי', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg8', authorId: 'u6', authorName: 'רון שגב', text: 'אני מודה על התקנת מצלמות אבטחה ותאורה סולארית בשער היישוב', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+          { id: 'rg9', authorId: 'u7', authorName: 'תמר פרץ', text: 'אני מודה על הפעלת שוק קח-תן קהילתי חודשי ברחבת המועדון', boxState: 'private', isProposalStarter: false, mergedIntoId: null },
+
+          // Constituent personal goals inside saved Group 1 "יעד אחוד" boxes (gg1..gg8)
+          { id: 'rg10', authorId: 'u4', authorName: 'יוסי מזרחי', text: 'אני מודה על שיפוץ מועדון הנוער ופתיחתו 4 ערבים בשבוע עם מדריך קבוע', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg1' },
+          { id: 'rg11', authorId: 'u3', authorName: 'מיכל אברהם', text: 'אני מודה על גיוס מדריך נוער בשכר ושיפוץ מבנה הנעורים', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg1' },
+          { id: 'rg12', authorId: 'u6', authorName: 'רון שגב', text: 'אני מודה על תקציב פעילות שנתי קבוע ושיפוץ מועדון הנעורים', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg1' },
+          { id: 'rg13', authorId: 'u3', authorName: 'מיכל אברהם', text: 'אני מודה על הקמת בנק שעות התנדבות וסיירת עזרה ליולדות ולוותיקים', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg2' },
+          { id: 'rg14', authorId: 'u6', authorName: 'רון שגב', text: 'אני מודה על מערך מתנדבים לעזרה הדדית בעת חולי או לידה בקהילה', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg2' },
+          { id: 'rg15', authorId: 'u7', authorName: 'תמר פרץ', text: 'אני מודה על הקמת גינה קהילתית יצרנית וקומפוסטר שכונתי פעיל עם ילדי הגנים', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg3' },
+          { id: 'rg16', authorId: 'u1', authorName: 'דני כהן', text: 'אני מודה על מתחם קומפוסט וגינת ירק קהילתית למשפחות היישוב', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg3' },
+          { id: 'rg17', authorId: 'u5', authorName: 'ענת גולן', text: 'אני מודה על קיום 4 אירועי תרבות וחג קהילתיים בהפקה מקומית', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg4' },
+          { id: 'rg18', authorId: 'u2', authorName: 'רותי לוי', text: 'אני מודה על צוותי מתנדבים שמפיקים את חגי הקהילה לאורך השנה', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg4' },
+          { id: 'rg19', authorId: 'u6', authorName: 'רון שגב', text: 'אני מודה על הכשרת צוות חירום קהילתי (צח"י) וציוד מרכז החוסן', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg5' },
+          { id: 'rg20', authorId: 'u4', authorName: 'יוסי מזרחי', text: 'אני מודה על תרגול וציוד צוות החירום היישובי', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg5' },
+          { id: 'rg21', authorId: 'u2', authorName: 'רותי לוי', text: 'אני מודה על תכנית משפחות מאמצות לקליטת 10 משפחות חדשות השנה', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg6' },
+          { id: 'rg22', authorId: 'u1', authorName: 'דני כהן', text: 'אני מודה על שדרוג תאורת השבילים והצבת ספסלים מוצלים בטיילת', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg7' },
+          { id: 'rg23', authorId: 'u5', authorName: 'ענת גולן', text: 'אני מודה על הקמת גינת כלבים מוצלת ומגודרת בקצה המערבי', boxState: 'unified', isProposalStarter: false, mergedIntoId: 'gg8' }
+        ],
+
+        // Group 1 Unified Goals ("יעד אחוד" boxes)
+        groupGoals: [
+          {
+            id: 'gg1',
+            groupId: 1,
+            text: 'שיפוץ מועדון הנוער והפעלתו 4 ערבים בשבוע עם מדריך נוער בשכר',
+            authors: ['יוסי מזרחי', 'מיכל אברהם', 'רון שגב'],
+            votes: [
+              { voterName: 'יוסי מזרחי', points: 7 }, { voterName: 'מיכל אברהם', points: 7 },
+              { voterName: 'דני כהן', points: 6 }, { voterName: 'רון שגב', points: 7 },
+              { voterName: 'תמר פרץ', points: 5 }, { voterName: 'רותי לוי', points: 6 }
+            ]
+          },
+          {
+            id: 'gg2',
+            groupId: 1,
+            text: 'הקמת "בנק זמן" קהילתי וסיירת עזרה הדדית ליולדות, חולים וותיקים',
+            authors: ['מיכל אברהם', 'רון שגב'],
+            votes: [
+              { voterName: 'תמר פרץ', points: 7 }, { voterName: 'רותי לוי', points: 5 },
+              { voterName: 'ענת גולן', points: 6 }, { voterName: 'דני כהן', points: 5 },
+              { voterName: 'מיכל אברהם', points: 5 }, { voterName: 'רון שגב', points: 6 }
+            ]
+          },
+          {
+            id: 'gg3',
+            groupId: 1,
+            text: 'הקמת גינה קהילתית יצרנית ומתחם קומפוסט בשיתוף משפחות וילדי הגנים',
+            authors: ['תמר פרץ', 'דני כהן'],
+            votes: [
+              { voterName: 'תמר פרץ', points: 4 }, { voterName: 'דני כהן', points: 4 },
+              { voterName: 'ענת גולן', points: 4 }, { voterName: 'יוסי מזרחי', points: 5 },
+              { voterName: 'רותי לוי', points: 4 }, { voterName: 'רון שגב', points: 3 }
+            ]
+          },
+          {
+            id: 'gg4',
+            groupId: 1,
+            text: 'קיום 4 אירועי תרבות וחג קהילתיים מרכזיים בהפקה מקומית של צוותי מתנדבים',
+            authors: ['ענת גולן', 'רותי לוי'],
+            votes: [
+              { voterName: 'ענת גולן', points: 5 }, { voterName: 'רותי לוי', points: 3 },
+              { voterName: 'מיכל אברהם', points: 4 }, { voterName: 'יוסי מזרחי', points: 4 },
+              { voterName: 'דני כהן', points: 3 }
+            ]
+          },
+          {
+            id: 'gg5',
+            groupId: 1,
+            text: 'הכשרת צוות חירום קהילתי (צח"י) וציוד מרכז החוסן היישובי',
+            authors: ['רון שגב', 'יוסי מזרחי'],
+            votes: [
+              { voterName: 'רון שגב', points: 4 }, { voterName: 'יוסי מזרחי', points: 3 },
+              { voterName: 'מיכל אברהם', points: 3 }, { voterName: 'תמר פרץ', points: 3 },
+              { voterName: 'דני כהן', points: 2 }
+            ]
+          },
+          {
+            id: 'gg6',
+            groupId: 1,
+            text: 'תכנית ליווי ו"משפחות מאמצות" ל-10 המשפחות החדשות שנקלטות השנה',
+            authors: ['רותי לוי'],
+            votes: [
+              { voterName: 'רותי לוי', points: 2 }, { voterName: 'ענת גולן', points: 3 },
+              { voterName: 'מיכל אברהם', points: 2 }, { voterName: 'תמר פרץ', points: 2 },
+              { voterName: 'רון שגב', points: 2 }, { voterName: 'יוסי מזרחי', points: 2 }
+            ]
+          },
+          {
+            id: 'gg7',
+            groupId: 1,
+            text: 'שדרוג תאורת השבילים והצבת ספסלי ישיבה מוצלים לאורך הטיילת ההיקפית',
+            authors: ['דני כהן'],
+            votes: [
+              { voterName: 'דני כהן', points: 1 }, { voterName: 'רותי לוי', points: 1 },
+              { voterName: 'ענת גולן', points: 2 }, { voterName: 'יוסי מזרחי', points: 1 },
+              { voterName: 'מיכל אברהם', points: 1 }, { voterName: 'רון שגב', points: 1 },
+              { voterName: 'תמר פרץ', points: 1 }
+            ]
+          },
+          {
+            id: 'gg8',
+            groupId: 1,
+            text: 'הקמת גינת כלבים מוצלת ומגודרת בקצה המערבי של היישוב',
+            authors: ['ענת גולן'],
+            votes: [
+              { voterName: 'ענת גולן', points: 1 }, { voterName: 'תמר פרץ', points: 1 }
+            ]
+          }
+        ],
+
+        mobileSelectedRanks: ['gg1', 'gg2', 'gg3', 'gg4', 'gg5', 'gg6', 'gg7'],
+
+        // ==========================================
+        // STAGE 4 DATA: INTER-GROUP MERGING (איחוד יעדים בין הקבוצות)
+        // Top 10 goals from each group enter this pool.
+        // boxState: 'unassigned' | 'proposal' | 'unified'
+        // ==========================================
+        advancingGroupGoals: [
+          // Currently in the active inter-group "הצעה לאיחוד בין-קבוצתי" box
+          { id: 'ag1', groupName: 'קבוצה 1', groupRank: 1, text: 'שיפוץ מועדון הנוער והפעלתו 4 ערבים בשבוע עם מדריך נוער בשכר', points: 38, voters: 6, highVotes: 5, authors: ['יוסי מזרחי', 'מיכל אברהם', 'רון שגב'], boxState: 'proposal', interUnifiedId: null },
+          { id: 'ag2', groupName: 'קבוצה 3', groupRank: 1, text: 'פתיחת מועדון הנעורים מחדש וגיוס מדריך נוער קבוע במשרה מלאה', points: 41, voters: 7, highVotes: 6, authors: ['מאיה רוזן', 'נדב פרידמן'], boxState: 'proposal', interUnifiedId: null },
+
+          // Unassigned goals that advanced from the groups (waiting to be merged across groups)
+          { id: 'ag3', groupName: 'קבוצה 1', groupRank: 3, text: 'הקמת גינה קהילתית יצרנית ומתחם קומפוסט בשיתוף משפחות וילדי הגנים', points: 24, voters: 6, highVotes: 0, authors: ['תמר פרץ', 'דני כהן'], boxState: 'unassigned', interUnifiedId: null },
+          { id: 'ag4', groupName: 'קבוצה 3', groupRank: 3, text: 'הקמת גינת ירק קהילתית ופינת קומפוסט שכונתית ליד גני הילדים', points: 29, voters: 6, highVotes: 2, authors: ['מאיה רוזן', 'עומר לוי'], boxState: 'unassigned', interUnifiedId: null },
+          { id: 'ag5', groupName: 'קבוצה 2', groupRank: 4, text: 'פתיחת מרחב עבודה משותף (Co-Working) לסטודנטים ועובדים מהבית', points: 22, voters: 5, highVotes: 2, authors: ['אלון דהן', 'גיל סלע'], boxState: 'unassigned', interUnifiedId: null },
+          { id: 'ag6', groupName: 'קבוצה 1', groupRank: 6, text: 'תכנית ליווי ו"משפחות מאמצות" ל-10 המשפחות החדשות שנקלטות השנה', points: 13, voters: 6, highVotes: 0, authors: ['רותי לוי'], boxState: 'unassigned', interUnifiedId: null },
+
+          // Already merged into final Inter-Group "יעד אחוד" boxes (ig1, ig2, ig3)
+          { id: 'ag7', groupName: 'קבוצה 1', groupRank: 1, text: 'הפעלת עגלת קפה קהילתית בימי שישי במדשאה המרכזית', points: 44, voters: 7, highVotes: 6, authors: ['דני כהן', 'רותי לוי', 'ענת גולן'], boxState: 'unified', interUnifiedId: 'ig1' },
+          { id: 'ag8', groupName: 'קבוצה 2', groupRank: 1, text: 'עגלת קפה קהילתית בימי שישי בבוקר למפגש בין-דורי על הדשא הגדול', points: 42, voters: 7, highVotes: 5, authors: ['אלון דהן', 'שירה חדד'], boxState: 'unified', interUnifiedId: 'ig1' },
+
+          { id: 'ag9', groupName: 'קבוצה 1', groupRank: 2, text: 'הקמת "בנק זמן" קהילתי וסיירת עזרה הדדית ליולדות, חולים וותיקים', points: 34, voters: 6, highVotes: 3, authors: ['מיכל אברהם', 'רון שגב'], boxState: 'unified', interUnifiedId: 'ig2' },
+          { id: 'ag10', groupName: 'קבוצה 2', groupRank: 2, text: 'מערך מתנדבים לעזרה הדדית, ארוחות ליולדות וביקורי ותיקים', points: 36, voters: 7, highVotes: 4, authors: ['שירה חדד', 'גיל סלע'], boxState: 'unified', interUnifiedId: 'ig2' },
+          { id: 'ag11', groupName: 'קבוצה 3', groupRank: 2, text: 'בנק שעות התנדבות קהילתי ורשת תמיכה במשפחות ובוותיקים', points: 33, voters: 6, highVotes: 3, authors: ['נדב פרידמן'], boxState: 'unified', interUnifiedId: 'ig2' },
+
+          { id: 'ag12', groupName: 'קבוצה 1', groupRank: 4, text: 'קיום 4 אירועי תרבות וחג קהילתיים מרכזיים בהפקה מקומית של מתנדבים', points: 19, voters: 5, highVotes: 0, authors: ['ענת גולן', 'רותי לוי'], boxState: 'unified', interUnifiedId: 'ig3' },
+          { id: 'ag13', groupName: 'קבוצה 2', groupRank: 3, text: 'הפקת 4 חגים ואירועי שיא קהילתיים לאורך השנה בהובלת צוותי תרבות', points: 27, voters: 6, highVotes: 2, authors: ['אלון דהן'], boxState: 'unified', interUnifiedId: 'ig3' }
+        ],
+
+        // Final Output of Stage 4: Unified Goals Across Groups (יעדים אחודים לאחר איחוד בין קבוצות)
+        interGroupUnifiedGoals: [
+          {
+            id: 'ig1',
+            text: 'הקמת והפעלת עגלת קפה קהילתית בימי שישי במדשאה המרכזית כמקום מפגש בין-דורי',
+          },
+          {
+            id: 'ig2',
+            text: 'הקמת "בנק זמן" קהילתי וסיירת ערבות הדדית ליולדות, חולים וותיקים בקהילה',
+          },
+          {
+            id: 'ig3',
+            text: 'קיום 4 אירועי תרבות וחג קהילתיים מרכזיים בשנה בהפקה מקומית של צוותי מתנדבים',
+          }
+        ]
+      };
+    }
+
+    let state = createInitialState();
+
+    // ==========================================
+    // ANALYTICS FOR STAGE 3 (GROUP VOTING RESULTS)
+    // ==========================================
+    function analyzeGoals(goalsList) {
+      const enriched = goalsList.map(g => {
+        const dist = { 7: 0, 6: 0, 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+        let totalPoints = 0;
+        g.votes.forEach(v => {
+          totalPoints += v.points;
+          if (dist[v.points] !== undefined) dist[v.points]++;
+        });
+        const votersCount = g.votes.length;
+        const highVotesCount = dist[7] + dist[6];
+        const highVotesRatio = votersCount > 0 ? (highVotesCount / votersCount) : 0;
+        const highPointsRatio = totalPoints > 0 ? ((dist[7] * 7 + dist[6] * 6) / totalPoints) : 0;
+        const strengthScore = Math.round(totalPoints * (0.5 * highVotesRatio + 0.5 * highPointsRatio));
+
+        return {
+          ...g,
+          totalPoints,
+          votersCount,
+          dist,
+          highVotesCount,
+          highVotesRatio: Math.round(highVotesRatio * 100),
+          strengthScore
+        };
+      });
+
+      enriched.sort((a, b) => {
+        if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+        if (b.votersCount !== a.votersCount) return b.votersCount - a.votersCount;
+        if (b.dist[7] !== a.dist[7]) return b.dist[7] - a.dist[7];
+        return b.dist[6] - a.dist[6];
+      });
+
+      const maxStrength = Math.max(...enriched.map(e => e.strengthScore), 1);
+      return enriched.map((item, idx) => {
+        let strengthLabel = '⚪ חלש';
+        let strengthFullLabel = '⚪ חלש (מבוסס דירוגים נמוכים)';
+        let strengthBadgeClass = 'bg-gray-500/15 text-[var(--muted-foreground)] border-gray-400/40';
+
+        if (item.highVotesCount >= 3 && (item.highVotesRatio >= 45 || item.strengthScore >= maxStrength * 0.55)) {
+          strengthLabel = '🟢 חזק';
+          strengthFullLabel = '🟢 חזק (קונצנזוס גבוה 6-7)';
+          strengthBadgeClass = 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/40';
+        } else if (item.totalPoints >= 15 && (item.highVotesCount >= 1 || item.dist[5] + item.dist[4] >= 3)) {
+          strengthLabel = '🟡 בינוני';
+          strengthFullLabel = '🟡 בינוני (פיזור דירוגי אמצע)';
+          strengthBadgeClass = 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/40';
+        }
+
+        return {
+          ...item,
+          rank: idx + 1,
+          advancesToStage4: idx < 10, // Top 10 advance from the group!
+          strengthLabel,
+          strengthFullLabel,
+          strengthBadgeClass
+        };
+      });
+    }
+
+    // ==========================================
+    // HANDLERS
+    // ==========================================
+    function showToast(msg) {
+      state.toastMessage = msg;
+      render();
+      setTimeout(() => {
+        if (state.toastMessage === msg) {
+          state.toastMessage = null;
+          render();
+        }
+      }, 3400);
+    }
+
+    window.toggleExpand = function(id, event) {
+      if (event) event.stopPropagation();
+      state.expandedId = state.expandedId === id ? null : id;
+      render();
+    };
+
+    window.setView = function(v) {
+      state.currentView = v;
+      render();
+    };
+
+    window.setMobileStage = function(st) {
+      state.mobileStage = st;
+      render();
+    };
+
+    // Stage 1 & 2 Personal Goals (Strictly Private)
+    window.addMobilePersonalGoal = function() {
+      const text = state.mobileNewGoalText.trim();
+      if (!text) return;
+      const user = state.participants.find(u => u.id === state.activeMobileUserId);
+      state.rawGoals.unshift({
+        id: 'rg_' + Date.now(),
+        authorId: user.id,
+        authorName: user.name,
+        text,
+        boxState: 'private',
+        isProposalStarter: false,
+        mergedIntoId: null
+      });
+      state.mobileNewGoalText = '';
+      showToast('היעד הפרטי נוסף לרשימה האישית שלך בלבד!');
+    };
+
+    window.startEditRawGoal = function(rgId, event) {
+      if (event) event.stopPropagation();
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (!rg || rg.boxState !== 'private') return;
+      state.editingRawGoalId = rgId;
+      state.editingRawGoalText = rg.text;
+      render();
+    };
+
+    window.saveEditRawGoal = function(rgId) {
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (rg && rg.boxState === 'private' && state.editingRawGoalText.trim()) {
+        rg.text = state.editingRawGoalText.trim();
+      }
+      state.editingRawGoalId = null;
+      showToast('היעד הפרטי שלך עודכן!');
+    };
+
+    window.deleteRawGoal = function(rgId, event) {
+      if (event) event.stopPropagation();
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (!rg || rg.boxState !== 'private') return;
+      state.rawGoals = state.rawGoals.filter(x => x.id !== rgId);
+      showToast('היעד הפרטי שלך נמחק');
+    };
+
+    // Stage 2: Group Turn & Box Handlers
+    window.presentGoalToAll = function(rgId) {
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (!rg || rg.boxState !== 'private') return;
+
+      const proposalGoals = state.rawGoals.filter(x => x.boxState === 'proposal');
+      const isTurnUser = rg.authorId === state.activeTurnUserId;
+
+      if (proposalGoals.length === 0) {
+        if (!state.openRoundMode && !isTurnUser) {
+          showToast('כרגע תורו של משתתף אחר לפתוח הצעה לאיחוד.');
+          return;
+        }
+        if (!state.openRoundMode && state.hasPresentedInActiveTurn) {
+          showToast('כבר הצגת יעד אחד בתור זה. המתן לסבב הבא.');
+          return;
+        }
+        rg.boxState = 'proposal';
+        rg.isProposalStarter = true;
+        state.hasPresentedInActiveTurn = true;
+        state.mergeTitleInput = rg.text.replace(/^אני מודה על (כך ש)?/, '');
+        showToast('היעד שלך עלה להצגה ופתח תיבת "הצעה לאיחוד יעדים"!');
+      } else {
+        rg.boxState = 'proposal';
+        rg.isProposalStarter = false;
+        showToast('היעד שלך צורף כיעד דומה לתיבת "הצעה לאיחוד יעדים"!');
+      }
+    };
+
+    window.removeGoalBackToPrivate = function(rgId) {
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (!rg) return;
+
+      const wasProposalStarter = rg.boxState === 'proposal' && rg.isProposalStarter;
+      const oldMergedId = rg.mergedIntoId;
+
+      rg.boxState = 'private';
+      rg.isProposalStarter = false;
+      rg.mergedIntoId = null;
+
+      if (wasProposalStarter && rg.authorId === state.activeTurnUserId) {
+        state.hasPresentedInActiveTurn = false;
+      }
+
+      if (oldMergedId) {
+        const remainingInUnified = state.rawGoals.filter(x => x.mergedIntoId === oldMergedId);
+        if (remainingInUnified.length === 0) {
+          state.groupGoals = state.groupGoals.filter(g => g.id !== oldMergedId);
+          showToast('היעד הוחזר למצב פרטי בטלפון של ' + rg.authorName + ' (והתיבה הריקה נסגרה)');
+          return;
+        } else {
+          const gg = state.groupGoals.find(g => g.id === oldMergedId);
+          if (gg) gg.authors = [...new Set(remainingInUnified.map(r => r.authorName))];
+        }
+      }
+      showToast('היעד הורד מהתיבה וחזר להיות יעד פרטי בטלפון של ' + rg.authorName + '!');
+    };
+
+    window.moveGoalToUnifiedBox = function(rgId, targetUnifiedId) {
+      if (!targetUnifiedId) return;
+      const rg = state.rawGoals.find(x => x.id === rgId);
+      if (!rg) return;
+
+      const oldMergedId = rg.mergedIntoId;
+      rg.boxState = 'unified';
+      rg.isProposalStarter = false;
+      rg.mergedIntoId = targetUnifiedId;
+
+      if (oldMergedId && oldMergedId !== targetUnifiedId) {
+        const remainingOld = state.rawGoals.filter(x => x.mergedIntoId === oldMergedId);
+        if (remainingOld.length === 0) {
+          state.groupGoals = state.groupGoals.filter(g => g.id !== oldMergedId);
+        } else {
+          const oldGG = state.groupGoals.find(g => g.id === oldMergedId);
+          if (oldGG) oldGG.authors = [...new Set(remainingOld.map(r => r.authorName))];
+        }
+      }
+
+      const targetGG = state.groupGoals.find(g => g.id === targetUnifiedId);
+      if (targetGG) {
+        const allMembers = state.rawGoals.filter(x => x.mergedIntoId === targetUnifiedId);
+        targetGG.authors = [...new Set(allMembers.map(r => r.authorName))];
+      }
+      state.expandedId = 'merged_' + targetUnifiedId;
+      showToast('היעד של ' + rg.authorName + ' הועבר לתיבת "יעד אחוד" שנבחרה!');
+    };
+
+    window.advanceToNextTurn = function() {
+      const members = state.participants.filter(p => p.groupId === 1);
+      if (!state.presentedInCurrentRound.includes(state.activeTurnUserId)) {
+        state.presentedInCurrentRound.push(state.activeTurnUserId);
+      }
+
+      const currentIdx = members.findIndex(m => m.id === state.activeTurnUserId);
+      let nextUser = null;
+
+      for (let offset = 1; offset <= members.length; offset++) {
+        const candidate = members[(currentIdx + offset) % members.length];
+        const privateCount = state.rawGoals.filter(r => r.authorId === candidate.id && r.boxState === 'private').length;
+        if (!state.presentedInCurrentRound.includes(candidate.id) && privateCount > 0) {
+          nextUser = candidate;
+          break;
+        }
+      }
+
+      if (!nextUser) {
+        state.roundNumber += 1;
+        state.presentedInCurrentRound = [];
+        for (let offset = 1; offset <= members.length; offset++) {
+          const candidate = members[(currentIdx + offset) % members.length];
+          const privateCount = state.rawGoals.filter(r => r.authorId === candidate.id && r.boxState === 'private').length;
+          if (privateCount > 0) {
+            nextUser = candidate;
+            break;
+          }
+        }
+      }
+
+      if (nextUser) {
+        state.activeTurnUserId = nextUser.id;
+        state.activeMobileUserId = nextUser.id;
+        state.hasPresentedInActiveTurn = false;
+      }
+      render();
+    };
+
+    window.facilitatorGrantTurn = function(userId) {
+      state.activeTurnUserId = userId;
+      state.activeMobileUserId = userId;
+      state.hasPresentedInActiveTurn = false;
+      const user = state.participants.find(u => u.id === userId);
+      showToast('המנחה העניק את התור כעת ל-' + (user ? user.name : ''));
+    };
+
+    window.saveProposalAsUnifiedGoal = function() {
+      const proposalGoals = state.rawGoals.filter(r => r.boxState === 'proposal');
+      if (proposalGoals.length === 0) {
+        showToast('אין כרגע יעדים בתיבת "הצעה לאיחוד יעדים".');
+        return;
+      }
+      const title = state.mergeTitleInput.trim() || proposalGoals[0].text;
+      const authors = [...new Set(proposalGoals.map(c => c.authorName))];
+      const newUnifiedId = 'gg_' + Date.now();
+
+      state.groupGoals.unshift({
+        id: newUnifiedId,
+        groupId: 1,
+        text: title,
+        authors,
+        votes: authors.map(a => ({ voterName: a, points: 7 }))
+      });
+
+      proposalGoals.forEach(pg => {
+        pg.boxState = 'unified';
+        pg.isProposalStarter = false;
+        pg.mergedIntoId = newUnifiedId;
+      });
+
+      state.mergeTitleInput = '';
+      state.expandedId = 'merged_' + newUnifiedId;
+      window.advanceToNextTurn();
+      showToast('נשמרה תיבת "יעד אחוד" חדשה והתור עבר למשתתף הבא בסבב!');
+    };
+
+    window.pickRawGoalAsMergeTitle = function(text) {
+      state.mergeTitleInput = text.replace(/^אני מודה על (כך ש)?/, '');
+      render();
+    };
+
+    // Stage 3: Group Voting Checkbox & Drag-and-Drop Reorder
+    window.toggleVoteCheckbox = function(goalId, event) {
+      if (event) event.stopPropagation();
+      const idx = state.mobileSelectedRanks.indexOf(goalId);
+      if (idx !== -1) {
+        state.mobileSelectedRanks.splice(idx, 1);
+      } else {
+        if (state.mobileSelectedRanks.length >= 7) {
+          showToast('כבר סימנת 7 יעדים. בטל סימון של יעד אחר או עבור ללשונית סידור ה-7 שבחרת.');
+          return;
+        }
+        state.mobileSelectedRanks.push(goalId);
+      }
+      render();
+    };
+
+    window.moveRankedGoal = function(fromIdx, toIdx) {
+      if (toIdx < 0 || toIdx >= state.mobileSelectedRanks.length) return;
+      const item = state.mobileSelectedRanks.splice(fromIdx, 1)[0];
+      state.mobileSelectedRanks.splice(toIdx, 0, item);
+      render();
+    };
+
+    window.onRankDragStart = function(idx) { state.draggedRankIndex = idx; };
+    window.onRankDragOver = function(event) { event.preventDefault(); };
+    window.onRankDrop = function(targetIdx) {
+      if (state.draggedRankIndex === null || state.draggedRankIndex === targetIdx) return;
+      window.moveRankedGoal(state.draggedRankIndex, targetIdx);
+      state.draggedRankIndex = null;
+    };
+
+    window.submitMobileVote = function() {
+      const user = state.participants.find(u => u.id === state.activeMobileUserId);
+      if (state.mobileSelectedRanks.length !== 7) {
+        showToast('יש לבחור 7 יעדים בדיוק לפני השליחה');
+        return;
+      }
+      state.groupGoals.forEach(g => {
+        g.votes = g.votes.filter(v => v.voterName !== user.name);
+      });
+      state.mobileSelectedRanks.forEach((goalId, idx) => {
+        const g = state.groupGoals.find(x => x.id === goalId);
+        if (g) g.votes.push({ voterName: user.name, points: 7 - idx });
+      });
+      showToast('הדירוג הקבוצתי של ' + user.name + ' נשלח ונשמר בהצלחה!');
+    };
+
+    // ==========================================
+    // STAGE 4 HANDLERS: INTER-GROUP MERGING (איחוד יעדים בין הקבוצות)
+    // ==========================================
+    window.addAdvancingGoalToInterProposal = function(agId) {
+      const ag = state.advancingGroupGoals.find(x => x.id === agId);
+      if (!ag) return;
+      ag.boxState = 'proposal';
+      ag.interUnifiedId = null;
+      if (!state.interGroupTitleInput.trim()) {
+        state.interGroupTitleInput = ag.text;
+      }
+      render();
+    };
+
+    window.pickInterGroupTitle = function(text) {
+      state.interGroupTitleInput = text;
+      render();
+    };
+
+    window.removeAdvancingGoalToPool = function(agId) {
+      const ag = state.advancingGroupGoals.find(x => x.id === agId);
+      if (!ag) return;
+      const oldUnifiedId = ag.interUnifiedId;
+      ag.boxState = 'unassigned';
+      ag.interUnifiedId = null;
+
+      if (oldUnifiedId) {
+        const remaining = state.advancingGroupGoals.filter(x => x.interUnifiedId === oldUnifiedId);
+        if (remaining.length === 0) {
+          state.interGroupUnifiedGoals = state.interGroupUnifiedGoals.filter(u => u.id !== oldUnifiedId);
+        }
+      }
+      showToast('היעד מ' + ag.groupName + ' הוחזר למאגר היעדים שעלו מהקבוצות');
+    };
+
+    window.moveAdvancingGoalToInterUnified = function(agId, targetId) {
+      if (!targetId) return;
+      const ag = state.advancingGroupGoals.find(x => x.id === agId);
+      if (!ag) return;
+      const oldUnifiedId = ag.interUnifiedId;
+      ag.boxState = 'unified';
+      ag.interUnifiedId = targetId;
+
+      if (oldUnifiedId && oldUnifiedId !== targetId) {
+        const remaining = state.advancingGroupGoals.filter(x => x.interUnifiedId === oldUnifiedId);
+        if (remaining.length === 0) {
+          state.interGroupUnifiedGoals = state.interGroupUnifiedGoals.filter(u => u.id !== oldUnifiedId);
+        }
+      }
+      state.expandedId = 'inter_' + targetId;
+      showToast('היעד מ' + ag.groupName + ' הועבר לתיבת היעד האחוד שנבחרה!');
+    };
+
+    window.saveInterGroupProposal = function() {
+      const proposalItems = state.advancingGroupGoals.filter(x => x.boxState === 'proposal');
+      if (proposalItems.length === 0) {
+        showToast('בחר לפחות יעד אחד ממאגר הקבוצות לאיחוד');
+        return;
+      }
+      const title = state.interGroupTitleInput.trim() || proposalItems[0].text;
+      const newId = 'ig_' + Date.now();
+      state.interGroupUnifiedGoals.unshift({ id: newId, text: title });
+
+      proposalItems.forEach(item => {
+        item.boxState = 'unified';
+        item.interUnifiedId = newId;
+      });
+      state.interGroupTitleInput = '';
+      state.expandedId = 'inter_' + newId;
+      showToast('נשמרה תיבת "יעד אחוד" בין-קבוצתית חדשה!');
+    };
+
+    window.exportStage4ToCSV = function() {
+      let csv = '\uFEFF';
+      csv += 'מספר,כותרת יעד אחוד (לאחר איחוד בין קבוצות),קבוצות שמהן עלה היעד,סך נקודות מצרפי מהקבוצות,סך מצביעים בקבוצות,מציעים מקוריים,היעדים הקבוצתיים שהרכיבו את האיחוד\n';
+      state.interGroupUnifiedGoals.forEach((ig, idx) => {
+        const members = state.advancingGroupGoals.filter(a => a.interUnifiedId === ig.id);
+        const groups = [...new Set(members.map(m => m.groupName))].join(' + ');
+        const totalPts = members.reduce((s, m) => s + m.points, 0);
+        const totalVoters = members.reduce((s, m) => s + m.voters, 0);
+        const authors = [...new Set(members.flatMap(m => m.authors))].join(', ');
+        const subTexts = members.map(m => `${m.groupName} (${m.points} נק'): ${m.text}`).join(' | ');
+        csv += [
+          idx + 1,
+          `"${ig.text.replace(/"/g, '""')}"`,
+          `"${groups}"`,
+          totalPts,
+          totalVoters,
+          `"${authors}"`,
+          `"${subTexts.replace(/"/g, '""')}"`
+        ].join(',') + '\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'תוצר_סופי_יעדים_אחודים_בין_קבוצות.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('התוצר הסופי (יעדים אחודים בין הקבוצות) יוצא לאקסל (CSV)!');
+    };
+
+    // ==========================================
+    // RENDER: MOBILE VIEW (STAGES 1, 2, 3)
+    // ==========================================
+    function renderMobileView() {
+      const user = state.participants.find(u => u.id === state.activeMobileUserId);
+      const turnUser = state.participants.find(u => u.id === state.activeTurnUserId);
+      const isMyTurn = user.id === state.activeTurnUserId;
+      const groupMembers = state.participants.filter(p => p.groupId === 1);
+      const myPrivateGoals = state.rawGoals.filter(rg => rg.authorId === user.id && rg.boxState === 'private');
+      const proposalGoals = state.rawGoals.filter(rg => rg.boxState === 'proposal');
+
+      return `
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+          <div class="lg:col-span-5 bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 space-y-3">
+            <div class="font-bold text-xs">📱 סימולטור הטלפון האישי של המשתתף (שלבים 1, 2, 3)</div>
+
+            <div class="space-y-1">
+              <label class="text-[11px] font-semibold text-[var(--muted-foreground)] block">
+                1. בחר משתתף (כל אחד רואה רק את היעדים הפרטיים שלו):
+              </label>
+              <div class="flex flex-wrap gap-1">
+                ${groupMembers.map(m => {
+                  const isTurn = m.id === state.activeTurnUserId;
+                  const privCount = state.rawGoals.filter(r => r.authorId === m.id && r.boxState === 'private').length;
+                  return `
+                    <button onclick="state.activeMobileUserId='${m.id}'; render()" class="px-2 py-1 rounded-lg text-xs border transition flex items-center gap-1 ${m.id === user.id ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-[var(--secondary)] border-[var(--border)]'}">
+                      <span>${isTurn ? '🎙️' : '👤'} ${m.name}</span>
+                      <span class="text-[10px] opacity-80">(${privCount})</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="space-y-1 pt-2 border-t border-[var(--border)]">
+              <label class="text-[11px] font-semibold text-[var(--muted-foreground)] block">2. בחר שלב בטלפון המשתתף:</label>
+              <div class="grid grid-cols-1 gap-1.5">
+                <button onclick="setMobileStage(1)" class="p-2 rounded-lg text-xs border text-right ${state.mobileStage === 1 ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-[var(--secondary)] border-[var(--border)]'}">
+                  שלב 1: כתיבת יעדים אישיים (פרטיים + עריכה ומחיקה)
+                </button>
+                <button onclick="setMobileStage(2)" class="p-2 rounded-lg text-xs border text-right ${state.mobileStage === 2 ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-[var(--secondary)] border-[var(--border)]'}">
+                  שלב 2: איחוד בקבוצה – סבב שיתוף ("הצג לכולם" ותיבת הצעה לאיחוד)
+                </button>
+                <button onclick="setMobileStage(3)" class="p-2 rounded-lg text-xs border text-right ${state.mobileStage === 3 ? 'bg-blue-600 text-white border-blue-600 font-bold' : 'bg-[var(--secondary)] border-[var(--border)]'}">
+                  שלב 3: הצבעה בקבוצה – סימון 7 יעדים בצ'קבוקס ממוספר + סידור בגרירה
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="lg:col-span-7 flex justify-center">
+            <div class="w-full max-w-[390px] bg-[var(--card)] border-4 border-slate-700/80 rounded-[26px] shadow-xl overflow-hidden">
+              <div class="bg-slate-800 text-white px-3.5 py-2 flex items-center justify-between text-xs">
+                <span class="font-bold">📱 הטלפון של ${user.name}</span>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px]">קבוצה 1 • שלב ${state.mobileStage}</span>
+              </div>
+
+              <div class="p-3 space-y-2.5 max-h-[540px] overflow-y-auto">
+                ${state.mobileStage === 1 ? `
+                  <div class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-1">
+                    <div class="font-bold text-amber-600 dark:text-amber-400">🥂 הרמת כוסית בראש השנה בעוד 8 חודשים</div>
+                    <div class="text-[11px] leading-snug">נסח בלשון הווה תודה על הישג קונקרטי שניתן לקלוט בחושים או לצלם במצלמה. היעדים פרטיים שלך עד שתציג אותם.</div>
+                  </div>
+
+                  <div class="flex gap-1.5">
+                    <input
+                      type="text"
+                      value="${state.mobileNewGoalText}"
+                      oninput="state.mobileNewGoalText = this.value"
+                      placeholder="אני מודה על כך שהקמנו..."
+                      class="flex-1 p-2 rounded-xl border border-[var(--border)] bg-[var(--background)] text-xs"
+                    />
+                    <button onclick="addMobilePersonalGoal()" class="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shrink-0">➕ הוסף</button>
+                  </div>
+
+                  <div class="space-y-1.5 pt-1">
+                    <div class="text-[11px] font-bold text-[var(--muted-foreground)]">🔒 היעדים הפרטיים שלך (${myPrivateGoals.length}):</div>
+                    ${myPrivateGoals.map(rg => `
+                      <div class="p-2.5 rounded-xl bg-[var(--secondary)]/40 border border-[var(--border)] text-xs space-y-1.5">
+                        ${state.editingRawGoalId === rg.id ? `
+                          <textarea oninput="state.editingRawGoalText = this.value" rows="2" class="w-full p-1.5 rounded border border-blue-500 bg-[var(--background)] text-xs">${state.editingRawGoalText}</textarea>
+                          <div class="flex justify-end gap-1.5">
+                            <button onclick="state.editingRawGoalId=null; render()" class="px-2 py-1 rounded border border-[var(--border)] text-[11px]">ביטול</button>
+                            <button onclick="saveEditRawGoal('${rg.id}')" class="px-2.5 py-1 rounded bg-emerald-600 text-white font-bold text-[11px]">💾 שמור</button>
+                          </div>
+                        ` : `
+                          <div class="flex items-start justify-between gap-2">
+                            <div class="font-medium leading-snug">${rg.text}</div>
+                            <div class="flex items-center gap-1 shrink-0">
+                              <button onclick="startEditRawGoal('${rg.id}', event)" class="px-2 py-1 rounded bg-[var(--card)] border border-[var(--border)] text-[11px]">✏️</button>
+                              <button onclick="deleteRawGoal('${rg.id}', event)" class="px-2 py-1 rounded bg-[var(--card)] border border-[var(--border)] text-[11px]">🗑️</button>
+                            </div>
+                          </div>
+                        `}
+                      </div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+
+                ${state.mobileStage === 2 ? `
+                  <div class="p-2.5 rounded-xl border ${isMyTurn ? 'bg-blue-600 text-white border-blue-600' : 'bg-[var(--secondary)] border-[var(--border)]'} text-xs flex items-center justify-between">
+                    <div>
+                      <div class="font-extrabold">
+                        ${isMyTurn ? '🎙️ תורך כעת בסבב ' + state.roundNumber + '!' : '🔄 סבב ' + state.roundNumber + ' – תורו/ה של ' + (turnUser ? turnUser.name : '')}
+                      </div>
+                      <div class="text-[11px] opacity-90">
+                        ${proposalGoals.length === 0
+                          ? (isMyTurn ? 'בחר יעד אחד שלך ולחץ "הצג לכולם"' : 'ממתינים ש-' + (turnUser ? turnUser.name : '') + ' יציג יעד')
+                          : 'פתוחה תיבת "הצעה לאיחוד יעדים" – אם יש לך יעד דומה צרף אותו!'}
+                      </div>
+                    </div>
+                  </div>
+
+                  ${proposalGoals.length > 0 ? `
+                    <div class="p-2.5 rounded-xl border-2 border-blue-500 bg-blue-500/10 space-y-1.5">
+                      <div class="text-[11px] font-extrabold text-blue-600 dark:text-blue-400">📦 תיבת "הצעה לאיחוד יעדים" הפתוחה כעת:</div>
+                      ${proposalGoals.map(pg => `
+                        <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs flex items-start justify-between gap-2">
+                          <div>
+                            <span class="font-bold text-[11px] text-blue-600 dark:text-blue-400">👤 ${pg.authorName}:</span>
+                            <div class="font-medium leading-snug">"${pg.text}"</div>
+                          </div>
+                          ${pg.authorId === user.id ? `
+                            <button onclick="removeGoalBackToPrivate('${pg.id}')" class="px-2 py-1 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold shrink-0">
+                              ↩️ החזר לפרטי
+                            </button>
+                          ` : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  ` : ''}
+
+                  <div class="space-y-1.5 pt-1">
+                    <div class="text-[11px] font-bold text-[var(--muted-foreground)]">🔒 היעדים הפרטיים שלך בלבד (${myPrivateGoals.length}):</div>
+                    ${myPrivateGoals.map(rg => {
+                      const canOpenNewProposal = proposalGoals.length === 0 && (state.openRoundMode || (isMyTurn && !state.hasPresentedInActiveTurn));
+                      const canJoinExistingProposal = proposalGoals.length > 0;
+                      return `
+                        <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/35 space-y-1.5">
+                          <div class="text-xs font-medium leading-snug">${rg.text}</div>
+                          <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[var(--border)]/60">
+                            ${canOpenNewProposal ? `
+                              <button onclick="presentGoalToAll('${rg.id}')" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-bold">
+                                📢 הצג לכולם
+                              </button>
+                            ` : canJoinExistingProposal ? `
+                              <button onclick="presentGoalToAll('${rg.id}')" class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold">
+                                ✋ יש לי יעד דומה – הצג לכולם
+                              </button>
+                            ` : `
+                              <span class="text-[10px] text-[var(--muted-foreground)]">⏳ ממתין לתורך בסבב</span>
+                            `}
+                            <div class="flex items-center gap-1">
+                              <button onclick="startEditRawGoal('${rg.id}', event)" class="px-2 py-0.5 rounded bg-[var(--card)] border border-[var(--border)] text-[11px]">✏️</button>
+                              <button onclick="deleteRawGoal('${rg.id}', event)" class="px-2 py-0.5 rounded bg-[var(--card)] border border-[var(--border)] text-[11px]">🗑️</button>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                ` : ''}
+
+                ${state.mobileStage === 3 ? `
+                  <!-- STAGE 3: COMPACT GROUP VOTING (CHECKBOX 1-7 + DRAG REORDER) -->
+                  <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[var(--secondary)] border border-[var(--border)]">
+                    <button onclick="state.mobileVoteSubStep='select'; render()" class="py-1.5 px-2 rounded-lg text-xs font-bold transition ${state.mobileVoteSubStep === 'select' ? 'bg-blue-600 text-white shadow-sm' : 'text-[var(--muted-foreground)]'}">
+                      1. סימון 7 יעדים (${state.mobileSelectedRanks.length}/7)
+                    </button>
+                    <button onclick="state.mobileVoteSubStep='reorder'; render()" class="py-1.5 px-2 rounded-lg text-xs font-bold transition ${state.mobileVoteSubStep === 'reorder' ? 'bg-blue-600 text-white shadow-sm' : 'text-[var(--muted-foreground)]'}">
+                      2. סידור הדירוג בגרירה
+                    </button>
+                  </div>
+
+                  ${state.mobileVoteSubStep === 'select' ? `
+                    ${state.mobileSelectedRanks.length === 7 ? `
+                      <button onclick="state.mobileVoteSubStep='reorder'; render()" class="w-full py-2 px-3 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow flex items-center justify-between">
+                        <span>✨ נבחרו 7 יעדים! המשך לסידור הדירוג בגרירה</span>
+                        <span>⬅️</span>
+                      </button>
+                    ` : ''}
+
+                    <div class="space-y-1.5">
+                      ${state.groupGoals.map(g => {
+                        const rankIdx = state.mobileSelectedRanks.indexOf(g.id);
+                        const isSelected = rankIdx !== -1;
+                        const rankNum = rankIdx + 1;
+                        const points = 7 - rankIdx;
+                        const isExp = state.expandedId === 'mvote_' + g.id;
+                        const constituentRaw = state.rawGoals.filter(r => r.mergedIntoId === g.id);
+
+                        return `
+                          <div class="rounded-xl border transition ${isSelected ? 'border-blue-600 bg-blue-500/10' : 'border-[var(--border)] bg-[var(--card)]'}">
+                            <div class="p-2.5 flex items-center gap-2.5">
+                              <button
+                                onclick="toggleVoteCheckbox('${g.id}', event)"
+                                class="w-8 h-8 rounded-lg border-2 shrink-0 flex flex-col items-center justify-center font-extrabold transition ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-[var(--muted-foreground)]/50 bg-[var(--background)] text-transparent'}"
+                              >
+                                ${isSelected ? `<span class="text-xs leading-none">${rankNum}</span><span class="text-[8px] font-normal leading-none">${points}נק'</span>` : '✓'}
+                              </button>
+                              <div onclick="toggleExpand('mvote_${g.id}', event)" class="flex-1 min-w-0 cursor-pointer">
+                                <div class="text-xs font-semibold leading-snug">${g.text}</div>
+                                <div class="text-[10px] text-[var(--muted-foreground)] mt-0.5">👤 מציעים: ${g.authors.join(', ')}</div>
+                              </div>
+                              <button onclick="toggleExpand('mvote_${g.id}', event)" class="px-1.5 py-1 rounded text-[11px] text-[var(--muted-foreground)]">
+                                ${isExp ? '▲' : 'ℹ️'}
+                              </button>
+                            </div>
+                            ${isExp ? `
+                              <div class="px-3 pb-2.5 pt-1.5 border-t border-[var(--border)] bg-[var(--secondary)]/30 text-[11px] space-y-1">
+                                <div class="font-bold text-[var(--muted-foreground)]">היעדים האישיים שהרכיבו יעד אחוד זה:</div>
+                                ${constituentRaw.map(r => `<div class="p-1.5 rounded bg-[var(--card)] border border-[var(--border)] text-[10px]"><strong>${r.authorName}:</strong> "${r.text}"</div>`).join('')}
+                              </div>
+                            ` : ''}
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  ` : `
+                    <div class="p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-xs">
+                      <div class="font-bold text-blue-600 dark:text-blue-400">🖐️ גרור למעלה או למטה לשינוי סדר העדיפות (1 = 7 נק', 7 = 1 נק')</div>
+                    </div>
+                    <div class="space-y-1.5">
+                      ${state.mobileSelectedRanks.map((goalId, idx) => {
+                        const g = state.groupGoals.find(x => x.id === goalId);
+                        if (!g) return '';
+                        const points = 7 - idx;
+                        return `
+                          <div
+                            draggable="true"
+                            ondragstart="onRankDragStart(${idx})"
+                            ondragover="onRankDragOver(event)"
+                            ondrop="onRankDrop(${idx})"
+                            class="p-2 rounded-xl border-2 border-[var(--border)] bg-[var(--card)] hover:border-blue-500 cursor-grab flex items-center gap-2"
+                          >
+                            <div class="text-[var(--muted-foreground)] text-xs px-1">☰</div>
+                            <div class="w-12 py-1 rounded-lg bg-blue-600 text-white text-center shrink-0">
+                              <div class="text-[11px] font-extrabold">מקום ${idx + 1}</div>
+                              <div class="text-[9px]">${points} נק'</div>
+                            </div>
+                            <div class="flex-1 min-w-0 text-xs font-semibold leading-snug">${g.text}</div>
+                            <div class="flex flex-col gap-0.5 shrink-0">
+                              <button onclick="moveRankedGoal(${idx}, ${idx - 1})" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[10px]">▲</button>
+                              <button onclick="moveRankedGoal(${idx}, ${idx + 1})" class="px-1.5 py-0.5 rounded bg-[var(--secondary)] text-[10px]">▼</button>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                    <div class="flex gap-2 pt-1">
+                      <button onclick="state.mobileVoteSubStep='select'; render()" class="px-3 py-2 rounded-xl border border-[var(--border)] text-xs font-semibold">➡️ חזור</button>
+                      <button onclick="submitMobileVote()" class="flex-1 py-2 rounded-xl font-bold text-xs bg-emerald-600 text-white shadow">
+                        ✅ שלח הצבעה קבוצתית (${user.name})
+                      </button>
+                    </div>
+                  `}
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // RENDER: GROUP FACILITATOR VIEW (STAGE 2 & STAGE 3 RESULTS)
+    // ==========================================
+    function renderFacilitatorView() {
+      const proposalGoals = state.rawGoals.filter(r => r.boxState === 'proposal');
+      const groupMembers = state.participants.filter(p => p.groupId === 1);
+      const turnUser = state.participants.find(u => u.id === state.activeTurnUserId);
+      const analyzedGroupGoals = analyzeGoals(state.groupGoals);
+
+      return `
+        <div class="space-y-2.5">
+          <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="font-bold text-xs">💻 מסך מנחה קבוצה 1 (יעל שפירא) – שלב 2 (איחוד בקבוצה) ושלב 3 (הצבעה וצמצום ל-10 יעדים)</div>
+            <div class="flex flex-wrap gap-1.5">
+              <button onclick="state.facilitatorStage=2; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${state.facilitatorStage === 2 ? 'bg-blue-600 text-white' : 'bg-[var(--secondary)] border border-[var(--border)]'}">
+                שלב 2: איחוד בקבוצה (צמצום המספר ללא ויתור על יעדים)
+              </button>
+              <button onclick="state.facilitatorStage=3; render()" class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${state.facilitatorStage === 3 ? 'bg-blue-600 text-white' : 'bg-[var(--secondary)] border border-[var(--border)]'}">
+                שלב 3: תוצאות ההצבעה בקבוצה (10 עולים לשלב 4)
+              </button>
+            </div>
+          </div>
+
+          ${state.facilitatorStage === 2 ? `
+            <!-- SMART ROUND-ROBIN BAR -->
+            <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 space-y-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="text-xs">
+                  <span class="font-extrabold text-blue-600 dark:text-blue-400">🔄 סבב ${state.roundNumber} (יעד-יעד לפי תור)</span>
+                  <span class="text-[var(--muted-foreground)] mr-2">• לחץ על שם משתתף להענקת תור ידנית</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button onclick="state.openRoundMode = !state.openRoundMode; render()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${state.openRoundMode ? 'bg-amber-500 text-white border-amber-500' : 'bg-[var(--secondary)] border-[var(--border)]'}">
+                    ${state.openRoundMode ? '🔓 מצב סבב פתוח' : '🔒 מצב סבב מובנה'}
+                  </button>
+                  <button onclick="advanceToNextTurn()" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[11px] font-bold">
+                    ⏭️ דלג למשתתף הבא
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-1.5">
+                ${groupMembers.map(m => {
+                  const isTurn = m.id === state.activeTurnUserId;
+                  const alreadyInRound = state.presentedInCurrentRound.includes(m.id);
+                  const privateCount = state.rawGoals.filter(r => r.authorId === m.id && r.boxState === 'private').length;
+                  return `
+                    <button onclick="facilitatorGrantTurn('${m.id}')" class="px-2.5 py-1.5 rounded-lg border text-xs flex items-center gap-1.5 transition ${isTurn ? 'bg-blue-600 text-white border-blue-600 font-bold shadow' : (alreadyInRound ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-[var(--secondary)]/50 border-[var(--border)]')}">
+                      <span>${isTurn ? '🎙️ תורו כעת:' : (alreadyInRound ? '✓' : '👤')} ${m.name}</span>
+                      <span class="px-1.5 py-0.2 rounded-full text-[10px] ${isTurn ? 'bg-white/20' : 'bg-[var(--card)] text-[var(--muted-foreground)]'}">🔒 ${privateCount} פרטיים</span>
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+              <!-- Active "הצעה לאיחוד יעדים" Box -->
+              <div class="lg:col-span-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 space-y-3">
+                <div class="border-b border-[var(--border)] pb-2">
+                  <h4 class="font-bold text-xs">1️⃣ תיבת "הצעה לאיחוד יעדים" (נפתחת כשמשתתף לוחץ "הצג לכולם")</h4>
+                  <p class="text-[11px] text-[var(--muted-foreground)]">בחר את אחד היעדים ככותרת או הקלד כותרת חדשה בשדה, ושמור לתיבת "יעד אחוד"</p>
+                </div>
+
+                ${proposalGoals.length === 0 ? `
+                  <div class="p-6 rounded-xl border-2 border-dashed border-[var(--border)] text-center space-y-2">
+                    <div class="text-xs font-bold">ממתינים ש-${turnUser ? turnUser.name : 'המשתתף שתורו'} ילחץ בטלפון שלו "📢 הצג לכולם"</div>
+                    <button onclick="setMobileStage(2); setView('mobile')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold">
+                      📱 עבור לטלפון של ${turnUser ? turnUser.name : 'המשתתף'} ללחיצה על "הצג לכולם"
+                    </button>
+                  </div>
+                ` : `
+                  <div class="p-3 rounded-xl border-2 border-blue-500/70 bg-blue-500/5 space-y-2.5">
+                    <div class="space-y-1.5">
+                      ${proposalGoals.map(pg => `
+                        <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--border)] space-y-1.5 text-xs">
+                          <div>
+                            <span class="font-bold text-[11px] text-blue-600 dark:text-blue-400">${pg.isProposalStarter ? '🎙️ הוצג ע"י' : '✋ צורף כדומה ע"י'} ${pg.authorName}:</span>
+                            <div class="font-medium leading-snug mt-0.5">"${pg.text}"</div>
+                          </div>
+                          <div class="flex flex-wrap items-center gap-1.5 pt-1 border-t border-[var(--border)]/60">
+                            <button onclick="pickRawGoalAsMergeTitle('${pg.text.replace(/'/g, "\\'")}')" class="px-2 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
+                              📋 בחר ככותרת היעד
+                            </button>
+                            <button onclick="removeGoalBackToPrivate('${pg.id}')" class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                              ↩️ הורד מהתיבה (החזר לפרטי)
+                            </button>
+                            <select onchange="moveGoalToUnifiedBox('${pg.id}', this.value)" class="p-0.5 rounded border border-[var(--border)] bg-[var(--background)] text-[10px]">
+                              <option value="">🔀 העבר ל"יעד אחוד" קיים...</option>
+                              ${state.groupGoals.map(gg => `<option value="${gg.id}">${gg.text.slice(0, 34)}...</option>`).join('')}
+                            </select>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
+
+                    <div class="p-2.5 rounded-lg bg-[var(--card)] border border-[var(--border)] space-y-2">
+                      <label class="text-xs font-bold block">✍️ שדה כותרת היעד האחוד:</label>
+                      <input
+                        type="text"
+                        value="${state.mergeTitleInput}"
+                        oninput="state.mergeTitleInput = this.value"
+                        class="w-full p-2 rounded-lg border border-blue-500 bg-[var(--background)] text-xs font-semibold"
+                      />
+                      <button onclick="saveProposalAsUnifiedGoal()" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
+                        💾 שמור כתיבת "יעד אחוד" והעבר תור להבא בסבב
+                      </button>
+                    </div>
+                  </div>
+                `}
+              </div>
+
+              <!-- Saved "יעד אחוד" Boxes -->
+              <div class="lg:col-span-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
+                <div class="flex items-center justify-between border-b border-[var(--border)] pb-2">
+                  <div>
+                    <h4 class="font-bold text-xs">2️⃣ תיבות "יעד אחוד" בקבוצה (${state.groupGoals.length})</h4>
+                    <p class="text-[11px] text-[var(--muted-foreground)]">לחץ על כל תיבה לצפייה ביעדים שהרכיבו אותה, הורדה חזרה לפרטי או העברה לתיבה אחרת</p>
+                  </div>
+                  <button onclick="state.facilitatorStage=3; render()" class="text-xs text-blue-600 dark:text-blue-400 font-bold underline shrink-0">
+                    לשלב 3 (הצבעה בקבוצה) ⬅️
+                  </button>
+                </div>
+
+                <div class="space-y-1.5 max-h-[410px] overflow-y-auto pr-1">
+                  ${state.groupGoals.map((gg, idx) => {
+                    const isExp = state.expandedId === 'merged_' + gg.id;
+                    const memberRawGoals = state.rawGoals.filter(r => r.mergedIntoId === gg.id);
+                    return `
+                      <div class="rounded-xl border ${isExp ? 'border-blue-500/60 bg-[var(--card)]' : 'border-[var(--border)] bg-[var(--secondary)]/20'} overflow-hidden">
+                        <div onclick="toggleExpand('merged_${gg.id}')" class="p-2.5 cursor-pointer hover:bg-[var(--secondary)]/50 flex items-center justify-between gap-2">
+                          <div class="text-xs font-semibold leading-snug">
+                            <span class="font-bold text-blue-600 dark:text-blue-400">📦 יעד אחוד #${idx + 1}:</span> ${gg.text}
+                          </div>
+                          <div class="flex items-center gap-1.5 shrink-0 text-[11px] text-[var(--muted-foreground)]">
+                            <span class="px-2 py-0.5 rounded-full bg-[var(--card)] border border-[var(--border)]">${memberRawGoals.length} יעדים • ${gg.authors.length} מציעים</span>
+                            <span>${isExp ? '▲' : '▼'}</span>
+                          </div>
+                        </div>
+
+                        ${isExp ? `
+                          <div class="p-3 border-t border-[var(--border)] bg-[var(--secondary)]/20 space-y-2 text-xs">
+                            ${memberRawGoals.map(mr => `
+                              <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] space-y-1.5">
+                                <div class="text-[11px]"><strong>👤 ${mr.authorName}:</strong> "${mr.text}"</div>
+                                <div class="flex flex-wrap items-center gap-1.5">
+                                  <button onclick="removeGoalBackToPrivate('${mr.id}')" class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                                    ↩️ הורד מהאיחוד (החזר לפרטי אצל ${mr.authorName})
+                                  </button>
+                                  <select onchange="moveGoalToUnifiedBox('${mr.id}', this.value)" class="p-1 rounded border border-[var(--border)] bg-[var(--background)] text-[10px]">
+                                    <option value="">🔀 העבר לתיבת "יעד אחוד" אחרת...</option>
+                                    ${state.groupGoals.filter(other => other.id !== gg.id).map(other => `<option value="${other.id}">${other.text.slice(0, 36)}...</option>`).join('')}
+                                  </select>
+                                </div>
+                              </div>
+                            `).join('')}
+                          </div>
+                        ` : ''}
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            </div>
+          ` : `
+            <!-- STAGE 3: GROUP VOTING RESULTS (REDUCING & DROPPING GOALS - TOP 10 ADVANCE TO STAGE 4) -->
+            <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+              <div class="px-3.5 py-2.5 border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-2 bg-[var(--secondary)]/40">
+                <div>
+                  <h3 class="font-bold text-xs">📊 תוצאות שלב 3 בקבוצה: צמצום בחירת היעדים (10 המובילים עולים לשלב 4 – איחוד בין הקבוצות)</h3>
+                  <p class="text-[11px] text-[var(--muted-foreground)]">לחץ על כל שורה לפתיחת התפלגות הציונים (7 עד 1), חוזק היעד ורשימת המצביעים השמית</p>
+                </div>
+                <button onclick="setView('intergroup')" class="px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-bold">
+                  המשך לשלב 4: איחוד יעדים בין הקבוצות ⬅️
+                </button>
+              </div>
+
+              <div class="divide-y divide-[var(--border)]">
+                ${analyzedGroupGoals.map(g => {
+                  const isExp = state.expandedId === 'gres_' + g.id;
+                  return `
+                    <div class="transition hover:bg-[var(--secondary)]/30">
+                      <div onclick="toggleExpand('gres_${g.id}')" class="p-2.5 cursor-pointer flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2 flex-1 min-w-[220px]">
+                          <span class="px-2 py-0.5 rounded font-extrabold text-[11px] shrink-0 ${g.advancesToStage4 ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400' : 'bg-[var(--secondary)] text-[var(--muted-foreground)]'}">
+                            ${g.advancesToStage4 ? '⬆️ #' + g.rank : '#' + g.rank}
+                          </span>
+                          <div class="font-semibold truncate">${g.text}</div>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0">
+                          <div><span class="font-extrabold text-sm">${g.totalPoints}</span> <span class="text-[10px] text-[var(--muted-foreground)]">נק'</span></div>
+                          <div class="text-[11px] text-[var(--muted-foreground)]">${g.votersCount} מצביעים</div>
+                          <span class="px-2 py-0.5 rounded-full border text-[10px] font-bold ${g.strengthBadgeClass}">${g.strengthLabel}</span>
+                          <span class="text-[11px] text-blue-500 font-bold">${isExp ? '▲' : '▼ פרטים'}</span>
+                        </div>
+                      </div>
+
+                      ${isExp ? `
+                        <div class="p-3 bg-[var(--secondary)]/30 border-t border-[var(--border)] space-y-2 text-xs">
+                          <div><strong>👤 מציעים:</strong> ${g.authors.join(', ')} • <strong>חוזק:</strong> ${g.strengthFullLabel}</div>
+                          <div class="grid grid-cols-7 gap-1 max-w-md text-center">
+                            ${[7,6,5,4,3,2,1].map(pt => `
+                              <div class="p-1 rounded border ${g.dist[pt] > 0 ? 'bg-[var(--card)] border-blue-500/40 font-bold' : 'opacity-40 border-[var(--border)]'}">
+                                <div class="text-[10px] text-[var(--muted-foreground)]">נתנו ${pt}</div>
+                                <div class="text-xs">${g.dist[pt]}</div>
+                              </div>
+                            `).join('')}
+                          </div>
+                          <div class="flex flex-wrap gap-1 pt-1">
+                            ${g.votes.slice().sort((a,b) => b.points - a.points).map(v => `
+                              <span class="px-2 py-0.5 rounded bg-[var(--card)] border border-[var(--border)] text-[11px]">👤 ${v.voterName}: <strong>${v.points} נק'</strong></span>
+                            `).join('')}
+                          </div>
+                        </div>
+                      ` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `}
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // RENDER: STAGE 4 - INTER-GROUP MERGING (איחוד יעדים בין הקבוצות - התוצר הסופי)
+    // ==========================================
+    function renderInterGroupStage4View() {
+      const proposalItems = state.advancingGroupGoals.filter(a => a.boxState === 'proposal');
+      const unassignedItems = state.advancingGroupGoals.filter(a => a.boxState === 'unassigned');
+
+      return `
+        <div class="space-y-3">
+          <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="font-extrabold text-xs">🤝 שלב 4 (השלב המסכם באפליקציה): איחוד יעדים בין הקבוצות</h3>
+              <p class="text-[11px] text-[var(--muted-foreground)]">
+                כאן מתנקזים היעדים המובילים שעלו מהקבוצות לאחר ההצבעה הקבוצתית. צוות המנחים מאחד יעדים דומים בין הקבוצות לקבלת רשימת היעדים האחודים הסופית.
+              </p>
+            </div>
+            <button onclick="exportStage4ToCSV()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
+              📥 ייצוא התוצר הסופי לאקסל (CSV)
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <!-- Right Column: Active Inter-Group Merge Box & Unassigned Group Winners Pool -->
+            <div class="lg:col-span-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 space-y-3">
+              <div class="font-bold text-xs border-b border-[var(--border)] pb-2">
+                1️⃣ תיבת "הצעה לאיחוד בין-קבוצתי" (${proposalItems.length} יעדים קבוצתיים במקבץ)
+              </div>
+
+              <div class="p-3 rounded-xl border-2 border-blue-500/70 bg-blue-500/5 space-y-2">
+                ${proposalItems.length === 0 ? `
+                  <div class="text-xs text-center text-[var(--muted-foreground)] py-2">
+                    בחר יעדים דומים מהמאגר למטה כדי לאחד אותם ליעד אחוד בין-קבוצתי
+                  </div>
+                ` : proposalItems.map(item => `
+                  <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] text-xs space-y-1">
+                    <div class="flex items-center justify-between text-[11px]">
+                      <span class="font-bold text-blue-600 dark:text-blue-400">🏆 ${item.groupName} (מקום #${item.groupRank} • ${item.points} נק', ${item.voters} מצביעים)</span>
+                    </div>
+                    <div class="font-semibold">"${item.text}"</div>
+                    <div class="flex flex-wrap gap-1.5 pt-1">
+                      <button onclick="pickInterGroupTitle('${item.text.replace(/'/g, "\\'")}')" class="px-2 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
+                        📋 בחר ככותרת
+                      </button>
+                      <button onclick="removeAdvancingGoalToPool('${item.id}')" class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                        ↩️ הורד למאגר הקבוצות
+                      </button>
+                    </div>
+                  </div>
+                `).join('')}
+
+                <div class="pt-1 space-y-1.5">
+                  <label class="text-xs font-bold block">✍️ שדה כותרת היעד האחוד (בחר מלמעלה או כתוב מחדש):</label>
+                  <input
+                    type="text"
+                    value="${state.interGroupTitleInput}"
+                    oninput="state.interGroupTitleInput = this.value"
+                    placeholder="הקלד או בחר את כותרת היעד האחוד..."
+                    class="w-full p-2 rounded-lg border border-blue-500 bg-[var(--background)] text-xs font-semibold"
+                  />
+                  <button onclick="saveInterGroupProposal()" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow">
+                    💾 שמור לתיבת "יעד אחוד" בתוצר הסופי
+                  </button>
+                </div>
+              </div>
+
+              <!-- Pool of Unassigned Advancing Goals from the Groups -->
+              <div class="space-y-1.5 pt-2 border-t border-[var(--border)]">
+                <div class="text-xs font-bold text-[var(--muted-foreground)]">
+                  מאגר היעדים שעלו מהקבוצות וטרם אוחדו (${unassignedItems.length}):
+                </div>
+                <div class="space-y-1.5 max-h-[250px] overflow-y-auto pr-1">
+                  ${unassignedItems.map(item => `
+                    <div class="p-2.5 rounded-xl border border-[var(--border)] bg-[var(--secondary)]/25 flex items-center justify-between gap-2 text-xs">
+                      <div class="min-w-0">
+                        <div class="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                          ${item.groupName} • מקום #${item.groupRank} (${item.points} נק', ${item.voters} מצביעים)
+                        </div>
+                        <div class="font-medium leading-snug">${item.text}</div>
+                      </div>
+                      <div class="flex flex-col gap-1 shrink-0">
+                        <button onclick="addAdvancingGoalToInterProposal('${item.id}')" class="px-2.5 py-1 rounded bg-blue-600 text-white text-[10px] font-bold">
+                          + צרף להצעת איחוד
+                        </button>
+                        <select onchange="moveAdvancingGoalToInterUnified('${item.id}', this.value)" class="p-0.5 rounded border border-[var(--border)] bg-[var(--background)] text-[10px]">
+                          <option value="">🔀 או העבר ליעד אחוד...</option>
+                          ${state.interGroupUnifiedGoals.map(ig => `<option value="${ig.id}">${ig.text.slice(0, 28)}...</option>`).join('')}
+                        </select>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+
+            <!-- Left Column: FINAL OUTPUT - Unified Goals Across Groups -->
+            <div class="lg:col-span-6 bg-[var(--card)] border border-[var(--border)] rounded-xl p-3.5 space-y-2.5">
+              <div class="border-b border-[var(--border)] pb-2">
+                <h4 class="font-extrabold text-xs text-emerald-600 dark:text-emerald-400">
+                  🏆 התוצר הסופי: תיבות "יעד אחוד" לאחר איחוד בין הקבוצות (${state.interGroupUnifiedGoals.length})
+                </h4>
+                <p class="text-[11px] text-[var(--muted-foreground)]">
+                  לחץ על כל יעד אחוד כדי לראות מאילו קבוצות הורכב, להוריד ממנו יעד חזרה למאגר או להעביר לתיבה אחרת
+                </p>
+              </div>
+
+              <div class="space-y-2 max-h-[430px] overflow-y-auto pr-1">
+                ${state.interGroupUnifiedGoals.map((ig, idx) => {
+                  const members = state.advancingGroupGoals.filter(a => a.interUnifiedId === ig.id);
+                  const totalPts = members.reduce((s, m) => s + m.points, 0);
+                  const totalVoters = members.reduce((s, m) => s + m.voters, 0);
+                  const groupsList = [...new Set(members.map(m => m.groupName))];
+                  const allAuthors = [...new Set(members.flatMap(m => m.authors))];
+                  const isExp = state.expandedId === 'inter_' + ig.id;
+
+                  return `
+                    <div class="rounded-xl border-2 ${isExp ? 'border-emerald-500/70 bg-[var(--card)]' : 'border-[var(--border)] bg-[var(--secondary)]/20'} overflow-hidden">
+                      <div onclick="toggleExpand('inter_${ig.id}')" class="p-3 cursor-pointer hover:bg-[var(--secondary)]/40 flex items-start justify-between gap-2">
+                        <div class="space-y-1">
+                          <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-extrabold text-[11px]">
+                              יעד אחוד #${idx + 1}
+                            </span>
+                            <span class="text-[11px] font-bold text-blue-600 dark:text-blue-400">
+                              אוחד מ-${groupsList.length} קבוצות (${groupsList.join(' + ')})
+                            </span>
+                            <span class="text-[11px] text-[var(--muted-foreground)]">
+                              • סה"כ ${totalPts} נק' (${totalVoters} מצביעים)
+                            </span>
+                          </div>
+                          <div class="text-xs font-bold leading-snug">${ig.text}</div>
+                        </div>
+                        <span class="text-xs text-[var(--muted-foreground)] shrink-0">${isExp ? '▲' : '▼'}</span>
+                      </div>
+
+                      ${isExp ? `
+                        <div class="p-3 border-t border-[var(--border)] bg-[var(--secondary)]/25 space-y-2 text-xs">
+                          <div class="text-[11px]"><strong>👤 כלל המציעים מהקבוצות:</strong> ${allAuthors.join(', ')}</div>
+                          <div class="text-[11px] font-bold text-[var(--muted-foreground)]">היעדים הקבוצתיים שמרכיבים יעד אחוד זה:</div>
+                          ${members.map(m => `
+                            <div class="p-2 rounded-lg bg-[var(--card)] border border-[var(--border)] space-y-1.5">
+                              <div class="flex items-center justify-between text-[11px]">
+                                <span class="font-bold text-blue-600 dark:text-blue-400">${m.groupName} (מקום #${m.groupRank} • ${m.points} נק', ${m.voters} מצביעים)</span>
+                                <span class="text-[10px] text-[var(--muted-foreground)]">מציעים: ${m.authors.join(', ')}</span>
+                              </div>
+                              <div class="text-xs font-medium">"${m.text}"</div>
+                              <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                                <button onclick="removeAdvancingGoalToPool('${m.id}')" class="px-2 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 text-[10px] font-bold">
+                                  ↩️ הורד מהאיחוד (החזר למאגר הקבוצות)
+                                </button>
+                                <select onchange="moveAdvancingGoalToInterUnified('${m.id}', this.value)" class="p-1 rounded border border-[var(--border)] bg-[var(--background)] text-[10px]">
+                                  <option value="">🔀 העבר לתיבת "יעד אחוד" אחרת...</option>
+                                  ${state.interGroupUnifiedGoals.filter(other => other.id !== ig.id).map(other => `<option value="${other.id}">${other.text.slice(0, 34)}...</option>`).join('')}
+                                </select>
+                              </div>
+                            </div>
+                          `).join('')}
+                        </div>
+                      ` : ''}
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // MAIN APP RENDER
+    // ==========================================
+    function render() {
+      const root = document.getElementById('app');
+      root.innerHTML = `
+        <div class="bg-[var(--card)] border border-[var(--border)] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+          <div class="flex items-center gap-2">
+            <span>🎯</span>
+            <div class="text-xs font-extrabold">דמו MVP ממוקד (4 שלבים בלבד: 1. כתיבה אישית ← 2. איחוד בקבוצה ← 3. הצבעה בקבוצה ← 4. איחוד בין הקבוצות)</div>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <button onclick="setView('mobile')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${state.currentView === 'mobile' ? 'bg-blue-600 text-white shadow' : 'bg-[var(--secondary)] border border-[var(--border)]'}">
+              📱 שלבים 1-3: מסך משתתף (נייד)
+            </button>
+            <button onclick="setView('facilitator')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${state.currentView === 'facilitator' ? 'bg-blue-600 text-white shadow' : 'bg-[var(--secondary)] border border-[var(--border)]'}">
+              💻 שלבים 2-3: מסך מנחה קבוצה
+            </button>
+            <button onclick="setView('intergroup')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${state.currentView === 'intergroup' ? 'bg-blue-600 text-white shadow' : 'bg-[var(--secondary)] border border-[var(--border)]'}">
+              🤝 שלב 4 (סופי): איחוד יעדים בין הקבוצות
+            </button>
+          </div>
+        </div>
+
+        ${state.toastMessage ? `
+          <div class="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center justify-between shadow">
+            <span>✨ ${state.toastMessage}</span>
+            <button onclick="state.toastMessage = null; render()">✕</button>
+          </div>
+        ` : ''}
+
+        <div>
+          ${state.currentView === 'mobile' ? renderMobileView() : ''}
+          ${state.currentView === 'facilitator' ? renderFacilitatorView() : ''}
+          ${state.currentView === 'intergroup' ? renderInterGroupStage4View() : ''}
+        </div>
+      `;
+    }
+
+    render();
+  </script>
+</body>
+</html>
