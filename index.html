@@ -1,137 +1,18 @@
 <!DOCTYPE html>
 <html lang="he" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>כלי לבחירת ואיחוד יעדים קהילתיים – סביבת תשתית ותיעוד</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #F8FAFC;
-      --surface: #FFFFFF;
-      --border: #E2E8F0;
-      --ink: #0F172A;
-      --muted: #475569;
-      --primary: #1D4ED8;
-      --primary-hover: #1E40AF;
-      --success-bg: #F0FDF4;
-      --success-text: #15803D;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 40px 20px;
-      font-family: 'Rubik', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--ink);
-      line-height: 1.6;
-    }
-    .container {
-      max-width: 760px;
-      margin: 0 auto;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 32px;
-    }
-    .status {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 12px;
-      border-radius: 999px;
-      background: var(--success-bg);
-      color: var(--success-text);
-      font-size: 13px;
-      font-weight: 500;
-      margin-bottom: 16px;
-    }
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--success-text);
-    }
-    h1 {
-      margin: 0 0 8px 0;
-      font-size: 24px;
-      font-weight: 600;
-    }
-    p {
-      margin: 0 0 24px 0;
-      font-size: 15px;
-      color: var(--muted);
-    }
-    .links {
-      display: grid;
-      gap: 12px;
-    }
-    a.card-link {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 18px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      text-decoration: none;
-      color: var(--ink);
-      transition: border-color 0.15s ease;
-    }
-    a.card-link:hover {
-      border-color: var(--primary);
-    }
-    .link-title {
-      font-size: 16px;
-      font-weight: 500;
-      margin-bottom: 2px;
-    }
-    .link-desc {
-      font-size: 14px;
-      color: var(--muted);
-    }
-    .arrow {
-      color: var(--primary);
-      font-weight: 600;
-      font-size: 15px;
-    }
-  </style>
-</head>
-<body>
-  <main class="container">
-    <div class="status">
-      <span class="dot"></span>
-      <span>תשתית וצינור פריסה (CI/CD) פעילים</span>
-    </div>
-    <h1>פלטפורמה לבחירת ואיחוד יעדים קהילתיים</h1>
-    <p>סביבת התשתית, האפיון ותכנית הפיתוח של הפרויקט מוכנים ומוגדרים לפריסה אוטומטית ב-GitHub Pages.</p>
-
-    <div class="links">
-      <a class="card-link" href="./demo/index.html">
-        <div>
-          <div class="link-title">פתיחת אב-הטיפוס הראשוני (4 שלבים)</div>
-          <div class="link-desc">הדגמת זרימת התהליך: כתיבה אישית, איחוד בקבוצה, הצבעה בקבוצה ואיחוד בין קבוצות</div>
-        </div>
-        <span class="arrow">פתיחה</span>
-      </a>
-
-      <a class="card-link" href="./docs/SPECIFICATION_AND_PLAN.md">
-        <div>
-          <div class="link-title">מסמך האפיון המלא ותכנית הפיתוח</div>
-          <div class="link-desc">שפה עיצובית, מילון קופי, הרשאות שולחנות (קוד + קישור + QR) ואבני דרך</div>
-        </div>
-        <span class="arrow">קריאה</span>
-      </a>
-
-      <a class="card-link" href="./docs/DATABASE_SCHEMA.sql">
-        <div>
-          <div class="link-title">סכמת בסיס הנתונים (PostgreSQL / Supabase)</div>
-          <div class="link-desc">הגדרת הטבלאות ומדיניות אבטחת הפרטיות ליעדים אישיים</div>
-        </div>
-        <span class="arrow">קריאה</span>
-      </a>
-    </div>
-  </main>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>בחירת ואיחוד יעדים קהילתיים</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
