@@ -21,6 +21,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -30,9 +36,14 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
         run: |
           if [ -f "package.json" ]; then
-            echo "Detected package.json - running Node build..."
+            echo "Detected package.json - running Node CI checks and build..."
             npm ci
+            npm run typecheck
+            npm test
             npm run build
+            if [ -d "demo" ]; then
+              cp -r demo dist/demo
+            fi
             ARTIFACT_DIR="dist"
           else
             echo "Infrastructure & docs stage - staging static site..."
